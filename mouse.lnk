@@ -1,0 +1,6 @@
+mouse ser8250 inport +
+bus8255 ps2 int33h
+mouse.drv
+mouse/map/al:16
+libw /NOD
+mouse.def
