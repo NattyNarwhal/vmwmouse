@@ -199,6 +199,8 @@ ps2_int proc    far
 	assumes ds,Data
 	assumes cs,Code
 
+	; (old handling code removed to save space for VMware handler)
+
 	; VMware absolute status
 	; It seems we'll need to use the full 32-bit register...
 	xor ebx, ebx
@@ -226,14 +228,21 @@ ps2_int proc    far
 	; CX  = y (ditto)
 	; DX  = number of buttons
 	; Translate the button state.
-	;mov dx, ax
+	mov dx, ax
 	xor ax, ax
-	;test dx, 20h
-	;jz left_unclicked
-	;or ax, SF_B1_DOWN
-	;jmp fin
+	test dx, 20h
+	jz left_unclicked
+	or ax, 2h ; SF_B1_DOWN
+	jmp right_click
 left_unclicked:
-	;or ax, SF_B1_UP
+	or ax, 4h ; SF_B1_UP
+right_click:
+	test dx, 10h
+	jz right_unclicked
+	or ax, 8h ; SF_B2_DOWN
+	jmp fin
+right_unclicked:
+	or ax, 10h ; SF_B2_UP
 fin:
 	; Set SF_ABSOLUTE and SF_MOVEMENT.
 	or ax, 8001h
