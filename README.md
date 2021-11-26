@@ -9,7 +9,7 @@ tablet support or VMware Tools drivers), with no Ctrl+Alt dancing?
 With this driver, now you can. It implements the interface that VMware uses
 (the [backdoor][1]), replacing the existing PS/2 mouse driver.
 
-![Example of going in and out](https://i.imgur.com/zJPGFbV.mp4)
+https://user-images.githubusercontent.com/3161292/143529005-8bedce21-109d-43d1-96c9-8c958a613bd6.mp4
 
 ## Well, how does it work?
 
