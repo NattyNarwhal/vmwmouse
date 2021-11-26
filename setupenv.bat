@@ -1,0 +1,4 @@
+rem Copy the DDK directory from the DDK CD to DEV.
+set PATH=C:\DEV\DDK\286\TOOLS;C:\MSVC\BIN;C:\WINDOWS;C:\DOS
+set LIB=C:\DEV\DDK\286\LIB
+set INCLUDE=C:\DEV\DDK\286\INC
