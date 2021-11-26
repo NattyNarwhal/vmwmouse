@@ -1,0 +1,7 @@
+# MASM cruft
+*.obj
+*.lst
+*.map
+*.sts
+# Finished object
+*.drv
