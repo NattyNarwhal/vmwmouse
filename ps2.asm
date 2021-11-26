@@ -199,64 +199,51 @@ ps2_int proc    far
 	assumes ds,Data
 	assumes cs,Code
 
-	mov     bx,wptr device_int[PS2_DELTA_X]
-	if2
-	.errnz  PS2_DELTA_Y-PS2_DELTA_X-1
-	endif
-
-	mov     al,bptr device_int[PS2_STATUS]
-	mov     ah,al
-	xchg    al,bptr device_int[PS2_OLD_STATUS]
-
-	mov     cl,2                    ;B=button, S=sign, P=prev button state
-;                                       ;AX = xxSSxxBB xxxxxxPP
-	ror     ah,cl                   ;AX = BBxxSSxx xxxxxxPP
-	rol     ax,cl                   ;AX = xxSSxxxx xxxxPPBB
-	inc     cx
-	shl     ah,cl                   ;AX = Sxxxxxxx xxxxPPBB, 'C' is Y sign
-	sbb     ch,ch                   ;Set sign of Y delta
-	.errnz  PS2_NEG_Y-00100000b
-	mov     cl,bh                   ;CX = Y delta
-	neg     cx                      ;They don't know which direction is up
-
-	shl     ah,1
-	sbb     bh,bh                   ;BX = delta X
-
-	xchg    bx,ax                   ;Get button deltas
-	and     bx,0000000000001111b
-	mov     bptr device_int[PS2_DATA_FLAG],bh
-	mov     bl,bptr device_int[bx][STATE_XLATE]
-	xchg    ax,bx
-
-	mov     dx,bx                   ;Set movement bit if movement
-	or      dx,cx
-	neg     dx
-	adc     ax,ax
-	.errnz  SF_MOVEMENT-00000001b
-	jz      ps2_no_data             ;Nothing happened
-
-	mov     dx,NUMBER_BUTTONS
-	xor     si,si           ; 0 ExtraMessageInfo for 3.1
-	xor     di,di           ; 0 ExtraMessageInfo for 3.1
+	; VMware absolute status
+	; It seems we'll need to use the full 32-bit register...
+	xor ebx, ebx
+	mov ecx, CMD_ABSPOINTER_STATUS
+	mov eax, VMWARE_MAGIC
+	mov dx, VMWARE_PORT
+	in eax, dx
+	; We need at least four bytes of data.
+	cmp ax, 4
+	jl ps2_no_data
+	; VMware absolute data
+	mov ebx, 4
+	mov ecx, CMD_ABSPOINTER_DATA
+	mov eax, VMWARE_MAGIC
+	mov dx, VMWARE_PORT
+	in eax, dx
+	; VMware will return the following in E[ABCD]X
+	; EAX = flags, buttons (10h right 20h left 8h middle)
+	; EBX = x (0 - FFFFh scaled)
+	; ECX = y (ditto)
+	; EDX = z (scroll wheel, can ignore)
+	; Windows wants:
+	; AX  = flags (absolute, button transitions)
+	; BX  = x (0 - FFFFh scaled, we caught a break)
+	; CX  = y (ditto)
+	; DX  = number of buttons
+	; Translate the button state.
+	;mov dx, ax
+	xor ax, ax
+	;test dx, 20h
+	;jz left_unclicked
+	;or ax, SF_B1_DOWN
+	;jmp fin
+left_unclicked:
+	;or ax, SF_B1_UP
+fin:
+	; Set SF_ABSOLUTE and SF_MOVEMENT.
+	or ax, 8001h
+	; XXX: Can we add the middle button/wheel?
+	mov dx, NUMBER_BUTTONS
+	; ESI/EDI are used by Pen Windows, so IDK. Already zeroed.
+	xor si,si
+	xor di,di
 	sti
 	call    event_proc
-
-	; VMware absolute status
-	;mov ebx, 0
-	;mov ecx, CMD_ABSPOINTER_STATUS
-	;mov eax, VMWARE_MAGIC
-	;mov edx, VMWARE_PORT
-	;xor esi, esi
-	;xor edi, edi
-	;in eax, dx
-	; VMware absolute data
-	;mov ebx, 4
-	;mov ecx, CMD_ABSPOINTER_DATA
-	;mov eax, VMWARE_MAGIC
-	;mov edx, VMWARE_PORT
-	;xor esi, esi
-	;xor edi, edi
-	;in eax, dx
 
 ps2_no_data:
 	pop     es
