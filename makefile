@@ -36,9 +36,7 @@ mouse.obj:	mouse.asm mouse.inc
 
 ps2.obj:	ps2.asm mouse.inc
 
-int33h.obj:	int33h.asm mouse.inc
-
-mouse.drv:	mouse.def mouse.obj ps2.obj int33h.obj
+mouse.drv:	mouse.def mouse.obj ps2.obj
       link @mouse.lnk
       rc mouse.drv
       mapsym mouse

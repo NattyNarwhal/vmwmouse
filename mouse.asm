@@ -40,7 +40,6 @@
 	externFP AllocDStoCSAlias
 
 	externNP ps2_search
-	externNP I33_init
 
 	externA  __WINFLAGS
 
@@ -620,11 +619,7 @@ page
 ; involves searching for a mouse in the system.  The ordering in
 ; which we will search is as follows:
 ;
-;	INT 33h installed mouse driver
-;	Microsoft InPort Mouse
-;	Microsoft Bus Mouse
-;	PS/2 Mouse via ROM BIOS support
-;	Serial Mouse
+;	VMware paravirtual mouse
 ;
 ; After a mouse handler has been found, the Data segment will be
 ; resized to the minimum needed to support the mouse in use.
@@ -643,7 +638,6 @@ page
 ; Registers Destroyed:
 ;	AX,BX,CX,DX,ES,FLAGS
 ; Calls:
-;	I33_search
 ;	PS2_search
 ; History:
 ;	Fri 21-Aug-1987 11:43:42 -by-  Walt Moore [waltm] & Mr. Mouse
@@ -744,15 +738,6 @@ try_mouse_reset:
 
 sys_mouse_present:
 	or	mouse_flags,MF_INT33H	;Show mouse driver is present
-	mov	ah,30h			;Get DOS version number
-        int     21h
-	cmp	al,OS2			;OS/2?
-	jb	check_ps2		;If not, skip int 33h search
-
-check_I33:
-	call	I33_init		;Use the installed mouse driver
-	jmp	short got_mouse		;  if it exists
-
 
 check_ps2:
 	mov	mouse_type, MT_PS2	;Assume PS/2 mouse

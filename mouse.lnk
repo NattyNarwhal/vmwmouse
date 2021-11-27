@@ -1,4 +1,4 @@
-mouse ps2 int33h
+mouse ps2
 mouse.drv
 mouse/map/al:16
 libw /NOD
