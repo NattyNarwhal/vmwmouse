@@ -417,53 +417,6 @@ hook_us_in	endp
 page
 
 ;---------------------------Public-Routine-----------------------------;
-; enable_our_int
-;
-; The 8259 is enabled for our interrupt, as specified by mask_8259.
-;
-; This routine will only be called by those functions which actually
-; require an IRQ.
-;
-; Entry:
-;	None
-; Returns:
-;	None
-; Error Returns:
-;	None
-; Registers Preserved:
-;	BX,CX,DX,SI,DI,ES,DS,BP
-; Registers Destroyed:
-;	AX,FLAGS
-; Calls:
-;	None
-; History:
-;	Mon 24-Aug-1987 22:41:22 -by-  Walt Moore [waltm] & Mr. Mouse
-;	Initial version
-;-----------------------------------------------------------------------;
-
-;------------------------------Pseudo-Code------------------------------;
-; {
-; }
-;-----------------------------------------------------------------------;
-
-	assumes cs,Code
-	assumes ds,Data
-
-		public	enable_our_int
-enable_our_int	proc	near
-
-	mov	ah,mask_8259		;Get our enable mask
-	cli
-	in	al,MASK_PORT		;Get current 8259 mask
-	and	al,ah			;Set our IRQ bit to 0 (enabled)
-	out	MASK_PORT,al
-	sti
-	ret
-
-enable_our_int	endp
-page
-
-;---------------------------Public-Routine-----------------------------;
 ; unhook_us
 ;
 ; This is a utility routine for the specific mouse handlers.  The

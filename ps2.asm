@@ -60,7 +60,6 @@
 
 	externNP hook_us_in             ;Hook us into our interrupt
 	externNP unhook_us              ;Hook us out of our interrupt
-	externNP enable_our_int         ;Enable us at the 8259
 
 
 
