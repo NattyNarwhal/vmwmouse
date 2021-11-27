@@ -34,18 +34,11 @@ mouse:  mouse.drv
 
 mouse.obj:	mouse.asm mouse.inc
 
-bus8255.obj:	bus8255.asm mouse.inc
-
-ser8250.obj:	ser8250.asm mouse.inc ins8250.inc
-
-inport.obj:	inport.asm mouse.inc inport.inc
-
 ps2.obj:	ps2.asm mouse.inc
 
 int33h.obj:	int33h.asm mouse.inc
 
-mouse.drv:	mouse.def mouse.obj ser8250.obj 	\
-		inport.obj bus8255.obj ps2.obj int33h.obj
+mouse.drv:	mouse.def mouse.obj ps2.obj int33h.obj
       link @mouse.lnk
       rc mouse.drv
       mapsym mouse

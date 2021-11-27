@@ -39,9 +39,6 @@
 
 	externFP AllocDStoCSAlias
 
-	externNP inport_search
-	externNP serial_search
-	externNP bus_search
 	externNP ps2_search
 	externNP I33_init
 
@@ -647,10 +644,7 @@ page
 ;	AX,BX,CX,DX,ES,FLAGS
 ; Calls:
 ;	I33_search
-;	inport_search
-;	bus_search
 ;	PS2_search
-;	serial_search
 ; History:
 ;	Fri 21-Aug-1987 11:43:42 -by-  Walt Moore [waltm] & Mr. Mouse
 ;	Initial version
@@ -699,7 +693,7 @@ if 0	;----------------------------------------------------------------
 ;	    but there isn't much we can do about it.
 
 	test	hello,1 		;!!! just for now  (WinFlags)
-	jnz	check_inport
+	jnz	check_ps2
 	push	cs			;ES:DX --> bogus_far_ret
 	pop	es
 	mov	dx,CodeOFFSET bogus_far_ret
@@ -746,40 +740,23 @@ try_mouse_reset:
 	.errnz	INT33H_RESET
 	int	MOUSE_SYS_VEC
 	or	ax,ax			;Zero if no mouse installed
-	jz	check_inport
+	jz	check_ps2
 
 sys_mouse_present:
 	or	mouse_flags,MF_INT33H	;Show mouse driver is present
 	mov	ah,30h			;Get DOS version number
         int     21h
 	cmp	al,OS2			;OS/2?
-	jb	check_inport		;If not, skip int 33h search
+	jb	check_ps2		;If not, skip int 33h search
 
 check_I33:
 	call	I33_init		;Use the installed mouse driver
 	jmp	short got_mouse		;  if it exists
 
 
-check_inport:
-	call	inport_search		;Try to find InPort mouse
-	jnc	check_bus		;InPort mouse wasn't found
-	jcxz	check_ps2		;Was found, didn't respond
-	mov	mouse_type, MT_INPORT	;InPort mouse
-	jmp	short got_mouse 	;Was found, responded
-
-check_bus:
-	mov	mouse_type, MT_BUS	;Assume bus mouse
-	call	bus_search		;Next up, the old bus mouse
-	jc	got_mouse
-
 check_ps2:
 	mov	mouse_type, MT_PS2	;Assume PS/2 mouse
 	call	ps2_search		;PS/2 mouse port?
-	jc	got_mouse
-
-check_serial:
-	mov	mouse_type, MT_SERIAL	;Assume serial mouse
-	call	serial_search
 	jc	got_mouse
 	mov	mouse_type, MT_NO_MOUSE ;Reset mouse type to none
 	mov	si,DataOFFSET device_int;Resize to this limit
