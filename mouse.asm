@@ -37,13 +37,12 @@
 	include mouse.inc
 	.list
 
-	externFP AllocDStoCSAlias
-
 	externNP ps2_search
+	externNP ps2_enable
+	externNP ps2_disable
+	externNP ps2_int
 
 	externA  __WINFLAGS
-
-OS2	equ	10			;Version number for OS/2
 
 sBegin	Data
 
@@ -60,65 +59,11 @@ globalW 	io_base,0		;Mouse port base address
 globalD 	event_proc,0		;Mouse event procedure when enabled
 globalD 	bios_proc,0		;Contents of old interrupt vector
 
-globalW 	enable_proc,0		;Address of routine to	enable mouse
-globalW 	disable_proc,0		;Address of routine to disable mouse
 globalW 	interrupt_rate,30	;Maximum interrupt rate of mouse
+
 page
-;--------------------------Interrupt-Routine----------------------------;
-;
-; device_int - Mouse Specific Interrupt Handler
-;
-; The mouse specific interrupt code will follow.  It will be copied
-; into the reserved area as initialization time, and executed from
-; here.
-;
-; Entry:
-;	DS = Data
-;	CS = Data
-; Returns:
-;	AX = status
-;	BX = delta X
-;	CX = delta Y
-; Error Returns:
-;	None
-; Registers Preserved:
-;	None
-; Registers Destroyed:
-;	All
-; Calls:
-;	none
-; WARNING:
-;	Unused memory from device_int will be freed.  Therefore device
-;	int must be the last thing allocated in the Data segment
-; History:
-;	Fri 21-Aug-1987 11:43:42 -by-  Walt Moore [waltm] & Mr. Mouse
-;	Initial version
-;-----------------------------------------------------------------------;
-
-;------------------------------Pseudo-Code------------------------------;
-; {
-; }
-;-----------------------------------------------------------------------;
-
-	assumes cs,Data
-	assumes ds,Data
-	assumes es,nothing
-	assumes ss,nothing
-
-	even
-
-globalW 	IntCS,0 		; DS alias for this routine
-
-	public	device_int
-
-device_int	proc	near
-
-	db	MAX_INT_SIZE dup (?)	;Specific int handler goes here
-
-device_int	endp
 
 sEnd	Data
-page
 
 sBegin	Code
 assumes cs,Code
@@ -222,7 +167,7 @@ page
 ; Registers Destroyed:
 ;	AX,BX,CX,DX,ES,FLAGS
 ; Calls:
-;	Indirect through enable_proc
+;	ps2_enable
 ; History:
 ;	Fri 21-Aug-1987 11:43:42 -by-  Walt Moore [waltm] & Mr. Mouse
 ;	Initial version
@@ -260,7 +205,7 @@ cBegin
 	xor	al,MF_MOUSE_EXISTS	;  then skip the enabling
 	test	al,MF_ENABLED+MF_MOUSE_EXISTS
 	jnz	enable_done
-	call	enable_proc		;Mouse specific initialization
+	call	ps2_enable		;Mouse specific initialization
 	or	mouse_flags,MF_ENABLED	;Show enabled now
 
 enable_done:
@@ -288,7 +233,7 @@ page
 ; Registers Destroyed:
 ;	AX,BX,CX,DX,ES,FLAGS
 ; Calls:
-;	Indirect through disable_proc
+;	ps2_disable
 ; History:
 ;	Fri 21-Aug-1987 11:43:42 -by-  Walt Moore [waltm] & Mr. Mouse
 ;	Initial version
@@ -307,7 +252,7 @@ cProc	Disable,<FAR,PUBLIC,WIN,PASCAL>,<si,di>
 cBegin
 	test	mouse_flags,MF_ENABLED
 	jz	disable_done		;Mouse is already disabled
-	call	disable_proc		;Disable as needed
+	call	ps2_disable		;Disable as needed
 	and	mouse_flags,not MF_ENABLED
 
 disable_done:
@@ -457,11 +402,11 @@ hook_us_in_no_irq:
 	mov	wptr bios_proc[2],es
 
 	push	ds
-	push	IntCS
-	pop	ds
+	push	seg ps2_int
 	mov	ah,25h			;Set our interrupt vector
-	mov	al,vector
-	mov	dx,DataOFFSET device_int
+	mov	al,vector		; need the real DS here; cs[vector] bad
+	pop	ds			; now it's safe to set DS for DS:DX
+	mov	dx,CodeOFFSET ps2_int
 	int	21h
 	pop	ds
 	sti
@@ -744,7 +689,7 @@ check_ps2:
 	call	ps2_search		;PS/2 mouse port?
 	jc	got_mouse
 	mov	mouse_type, MT_NO_MOUSE ;Reset mouse type to none
-	mov	si,DataOFFSET device_int;Resize to this limit
+	mov	si,MAX_INT_SIZE
 	jmp	short resize_ds
 
 got_mouse:
@@ -790,45 +735,11 @@ copy_mouse_routines:
 
 
 	or	mouse_flags,MF_MOUSE_EXISTS
-	mov	di,DataOFFSET device_int
-
-
-;	The mouse routines returned the following:
-;
-;	SI = offset within the Code segment of the handler
-;	CX = size of the handler
-;
-;	After the interrupt handler has been copied into the Data
-;	segment, SI-1 will be used as the new size of the Data segment.
-
-	push	ds			;Destination is in Data
-	pop	es
-	assumes es,Data
-	push	cs			;Source is in Code
-	pop	ds
-	assumes cs,Code
-	rep	movsb
-	push	es
-	pop	ds
-	assumes ds,Data
-
-	push	si
-	push	di
-	push	ds
-
-	cCall	AllocDStoCSAlias,<ds>
-	mov	IntCS,ax
-
-	pop	ds
-	pop	di
-	pop	si
 
 resize_ds:
 	dec	si
 
-;	!!! resize the DS here, based on SI-1 as the limit of what
-;	we need.  If we didn't find a mouse, then resize to the start
-;	of device_int-1.
+;	Claims to resize the data segment, but who cares anymore?
 
 	mov	ax,1			;Successful initialization
 

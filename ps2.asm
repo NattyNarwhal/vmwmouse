@@ -117,13 +117,34 @@ sBegin  Data
 
 externB vector                          ;Vector # of mouse interrupt
 externB mouse_flags                     ;Various flags as follows
-externW enable_proc                     ;Address of routine to  enable mouse
-externW disable_proc                    ;Address of routine to disable mouse
-externB device_int                      ;Start of mouse specific int handler
 externW interrupt_rate                  ;Maximum interrupt rate of mouse
-externW IntCS                           ;CS alias for Data Segment
 externD event_proc                      ;Mouse event procedure when enabled
 externD bios_proc                       ;Contents of old interrupt vector
+
+; These used to be copied to device_int, but since we just keep the interrupt
+; handler in the code segment, we move these to the data segment.
+
+;       PS2_DATA_FLAG is where the flag indicating there is
+;       valid mouse data is stored.  If this location is non-
+;       zero, then the following locations contain valid data.
+globalB PS2_DATA_FLAG, 0
+
+;       PS2_DELTA_X is where the delta X returned by the PS2 mouse
+;       handler will be stored.
+globalB PS2_DELTA_X, 0
+
+;       PS2_DELTA_Y is where the delta Y returned by the PS2 mouse
+;       handler will be stored.
+globalB PS2_DELTA_Y, 0
+
+;       PS2_STATUS is where the status returned by the PS2 mouse
+;       handler will be stored.
+globalB PS2_STATUS, 0
+
+;       PS2_OLD_STATUS is where the previous status returned by
+;       the PS2 mouse handler will be stored.  It is used to
+;       compute the button deltas.
+globalW PS2_OLD_STATUS, 0
 
 sEnd    Data
 
@@ -131,12 +152,6 @@ sEnd    Data
 sBegin  Code
 assumes cs,Code
 page
-
-;       This is the start of the data which will be copied into
-;       the device_int area reserved in the data segment.
-
-PS2_START       equ     this word
-
 
 ;--------------------------Interrupt-Routine----------------------------;
 ; ps2_int - Mouse Interrupt Handler for the PS/2 Bus Mouse
@@ -173,16 +188,17 @@ PS2_START       equ     this word
 	assumes es,nothing
 	assumes ss,nothing
 
-
-PS2_PROC_START  equ     $-PS2_START     ;Delta to this procedure
-		.errnz  PS2_PROC_START  ;Must be first
-
+		public  ps2_int         ;Public for debugging
 ps2_int proc    far
 
-	assumes cs,Data
+	; The interrupt handler only has CS set. We need to restore DS.
+	push ds
+	push seg bios_proc
+	pop ds
+	assumes ds,Data
 	pushf                           ;PS/2 mouse -- get data & issue EOI
 	call    bios_proc               ;  using the BIOS routines
-	test    bptr device_int[PS2_DATA_FLAG],0FFh
+	test    PS2_DATA_FLAG,0FFh
 	jz      ps2_int_exit            ;Not a valid PS/2 mouse interrupt
 
 	push    ax                      ;Save the world
@@ -266,6 +282,7 @@ ps2_no_data:
 	pop     ax
 
 ps2_int_exit:
+	pop ds
 	iret
 
 ps2_int endp
@@ -294,8 +311,6 @@ page
 ;
 ;-----------------------------------------------------------------------;
 
-STATE_XLATE     equ     $-PS2_START     ;delta to this table
-
 	db      0                       shr 1
 	db      (SF_B1_DOWN)            shr 1
 	db      (SF_B2_DOWN)            shr 1
@@ -318,43 +333,6 @@ STATE_XLATE     equ     $-PS2_START     ;delta to this table
 
 	.errnz  NUMBER_BUTTONS-2        ;Won't work unless a two button mouse
 
-page
-
-;       PS2_DATA_FLAG is where the flag indicating there is
-;       valid mouse data is stored.  If this location is non-
-;       zero, then the following locations contain valid data.
-
-PS2_DATA_FLAG   equ     $-PS2_START     ;Delta to this byte
-		db      0
-
-
-;       PS2_DELTA_X is where the delta X returned by the PS2 mouse
-;       handler will be stored.
-
-PS2_DELTA_X     equ     $-PS2_START     ;Delta to this byte
-		db      0
-
-
-;       PS2_DELTA_Y is where the delta Y returned by the PS2 mouse
-;       handler will be stored.
-
-PS2_DELTA_Y     equ     $-PS2_START     ;Delta to this byte
-		db      0
-
-
-;       PS2_STATUS is where the status returned by the PS2 mouse
-;       handler will be stored.
-
-PS2_STATUS      equ     $-PS2_START     ;Delta to this byte
-		db      0
-
-
-;       PS2_OLD_STATUS is where the previous status returned by
-;       the PS2 mouse handler will be stored.  It is used to
-;       compute the button deltas.
-
-PS2_OLD_STATUS  equ     $-PS2_START     ;Delta to this byte
-		db      0
 page
 
 ;--------------------------Interrupt-Routine----------------------------;
@@ -394,15 +372,13 @@ page
 ; }
 ;-----------------------------------------------------------------------;
 
-PS2_SOFT_START  equ     $-PS2_START     ;Delta to this procedure
-
 ps2_soft_int    proc    far
 
 ;       Great care was taken to not have any labels in the following
 ;       code to prevent the stupid assembler from complaining (yes,
 ;       we have to deal with MASM ourselves).
 
-	assumes cs,Data
+	assumes cs,Code
 	assumes ds,Data
 	assumes es,nothing
 	assumes ss,nothing
@@ -419,11 +395,11 @@ delta_y equ     byte ptr [bp+08h]
 	mov     ds,ax
 	mov     al,delta_x
 	mov     ah,delta_y
-	mov     wptr device_int[PS2_DELTA_X],ax
-	.errnz  PS2_DELTA_Y-PS2_DELTA_X-1
+	mov     PS2_DELTA_X,al
+	mov     PS2_DELTA_Y,ah
 	mov     al,status
-	mov     bptr device_int[PS2_STATUS],al
-	mov     bptr device_int[PS2_DATA_FLAG],0FFh
+	mov     PS2_STATUS,al
+	mov     PS2_DATA_FLAG,0FFh
 	pop     ds
 	pop     ax
 	pop     bp
@@ -431,11 +407,6 @@ delta_y equ     byte ptr [bp+08h]
 
 ps2_soft_int    endp
 
-
-PS2_INT_LENGTH  = $-PS2_START           ;Length of code to copy
-	.errnz  PS2_INT_LENGTH gt MAX_INT_SIZE
-
-display_int_size  %PS2_INT_LENGTH
 page
 
 ;---------------------------Public-Routine------------------------------;
@@ -504,11 +475,6 @@ ps2_machine_found:
 	int     11h                     ;Check equipment table
 	test    al,PT_DEV_PRES          ;Pointing device installed?
 	jz      ps2_cant_use_it         ;  No, mouse hardware not present
-
-	mov     enable_proc,CodeOFFSET ps2_enable
-	mov     disable_proc,CodeOFFSET ps2_disable
-	mov     si,CodeOFFSET ps2_int
-	mov     cx,PS2_INT_LENGTH
 	stc                             ;Show mouse was found
 	ret
 
@@ -595,10 +561,10 @@ ps2_set_res:
 
 ps2_install_ih:
 	mov     ax,I15_MOUSE_SUBFUNC shl 8 + PS2MSF_INSTALL_IH
-	push    IntCS                   ;ES:BX is software int handler address
+	push    seg ps2_soft_int         ;ES:BX is software int handler address
 	pop     es
 	assumes es,nothing
-	mov     bx,DataOFFSET device_int[PS2_SOFT_START]
+	mov     bx,CodeOFFSET ps2_soft_int
 	call    IssueInt15              ;INT 15H with interrupts disabled
 	jnc     ps2_scaling             ;Successful
 	cmp     ah,cl                   ;Transmission error?
@@ -723,6 +689,7 @@ page
 	assumes es,nothing
 	assumes ss,nothing
 
+		public  ps2_disable     ;Public for debugging
 ps2_disable     proc    near
 
 	mov     ax,I15_MOUSE_SUBFUNC shl 8 + PS2MSF_ENAB_DISAB

@@ -3,5 +3,6 @@
 *.lst
 *.map
 *.sts
+*.sym
 # Finished object
 *.drv
