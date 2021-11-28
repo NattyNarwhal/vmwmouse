@@ -102,13 +102,9 @@ PS2M_SAMPLING_100       equ     5       ;100 reports per second
 
 ;       PS_2 status byte definition
 
-PS2_B1_STATUS   equ     00000001b       ;Status of left button
-PS2_B2_STATUS   equ     00000010b       ;Status of right button
-;               equ     00000100b
-;               equ     00001000b
-PS2_NEG_X       equ     00010000b       ;X delta is negative
-PS2_NEG_Y       equ     00100000b       ;Y delta is negative
-
+VMWARE_LEFT	equ	20h		; Status of left button
+VMWARE_RIGHT	equ	10h		; Status of right button
+VMWARE_MIDDLE	equ	08h		; Status of middle button
 
 sBegin  Data
 
@@ -125,22 +121,9 @@ externD bios_proc                       ;Contents of old interrupt vector
 ;       zero, then the following locations contain valid data.
 globalB PS2_DATA_FLAG, 0
 
-;       PS2_DELTA_X is where the delta X returned by the PS2 mouse
-;       handler will be stored.
-globalB PS2_DELTA_X, 0
-
-;       PS2_DELTA_Y is where the delta Y returned by the PS2 mouse
-;       handler will be stored.
-globalB PS2_DELTA_Y, 0
-
-;       PS2_STATUS is where the status returned by the PS2 mouse
-;       handler will be stored.
-globalB PS2_STATUS, 0
-
-;       PS2_OLD_STATUS is where the previous status returned by
-;       the PS2 mouse handler will be stored.  It is used to
-;       compute the button deltas.
-globalW PS2_OLD_STATUS, 0
+globalW prev_x, 0
+globalW prev_y, 0
+globalW prev_state, 0
 
 sEnd    Data
 
@@ -229,31 +212,51 @@ ps2_int proc    far
 	; EAX = flags, buttons (10h right 20h left 8h middle)
 	; EBX = x (0 - FFFFh scaled)
 	; ECX = y (ditto)
-	; EDX = z (scroll wheel, can ignore)
+	; EDX = z (scroll wheel as 8-bit signed, can ignore)
 	; Windows wants:
 	; AX  = flags (absolute, button transitions)
 	; BX  = x (0 - FFFFh scaled, we caught a break)
 	; CX  = y (ditto)
 	; DX  = number of buttons
+
+
 	; Translate the button state.
 	mov dx, ax
 	xor ax, ax
-	test dx, 20h
+	test dx, VMWARE_LEFT
 	jz left_unclicked
-	or ax, 2h ; SF_B1_DOWN
+	or ax, SF_B1_DOWN
 	jmp right_click
 left_unclicked:
-	or ax, 4h ; SF_B1_UP
+	or ax, SF_B1_UP
 right_click:
-	test dx, 10h
+	test dx, VMWARE_RIGHT
 	jz right_unclicked
-	or ax, 8h ; SF_B2_DOWN
+	or ax, SF_B2_DOWN
 	jmp fin
 right_unclicked:
-	or ax, 10h ; SF_B2_UP
-fin:
-	; Set SF_ABSOLUTE and SF_MOVEMENT.
-	or ax, 8001h
+	or ax, SF_B2_UP
+
+
+set_prev_state:
+	mov prev_state, ax
+	; Only set SF_MOVEMENT if there was a difference
+	xor dx, dx ; Use DX as scratch again
+	cmp prev_x, bx
+	jne not_same_x
+	inc dx
+not_same_x:
+	cmp prev_y, cx
+	jne not_same_y
+	inc dx
+not_same_y:
+	cmp dx, 2
+	je set_deltas
+	or ax, SF_MOVEMENT
+set_deltas:
+	mov prev_x, bx
+	mov prev_y, cx
+	or ax, SF_ABSOLUTE
 	; XXX: Can we add the middle button/wheel?
 	mov dx, NUMBER_BUTTONS
 	; ESI/EDI are used by Pen Windows, so IDK. Already zeroed.
@@ -385,12 +388,8 @@ delta_y equ     byte ptr [bp+08h]
 	push    ds
 	mov     ax,_DATA
 	mov     ds,ax
-	mov     al,delta_x
-	mov     ah,delta_y
-	mov     PS2_DELTA_X,al
-	mov     PS2_DELTA_Y,ah
-	mov     al,status
-	mov     PS2_STATUS,al
+	; Don't check the actual delta, since it's invalid. Or the buttons.
+	; We can recalculate in the proper interrupt handler.
 	mov     PS2_DATA_FLAG,0FFh
 	pop     ds
 	pop     ax
