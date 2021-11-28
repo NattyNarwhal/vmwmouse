@@ -218,18 +218,14 @@ ps2_int proc    far
 	; It seems we'll need to use the full 32-bit register...
 	xor ebx, ebx
 	mov ecx, CMD_ABSPOINTER_STATUS
-	mov eax, VMWARE_MAGIC
-	mov dx, VMWARE_PORT
-	in eax, dx
+	call Backdoor
 	; We need at least four bytes of data.
 	cmp ax, 4
 	jl ps2_no_data
 	; VMware absolute data
 	mov ebx, 4
 	mov ecx, CMD_ABSPOINTER_DATA
-	mov eax, VMWARE_MAGIC
-	mov dx, VMWARE_PORT
-	in eax, dx
+	call Backdoor
 	; VMware will return the following in E[ABCD]X
 	; EAX = flags, buttons (10h right 20h left 8h middle)
 	; EBX = x (0 - FFFFh scaled)
@@ -447,9 +443,7 @@ ps2_search      proc    near
 	; Check for the VMware backdoor.
 	xor ebx, ebx
 	mov ecx, CMD_GETVERSION
-	mov eax, VMWARE_MAGIC
-	mov dx, VMWARE_PORT
-	in eax, dx
+	call Backdoor
 	cmp eax, 0FFFFFFFFh ; -1 is failure
 	je ps2_cant_use_it
 	cmp ebx, VMWARE_MAGIC ; EBX will be the magic, even on QEMU
@@ -599,38 +593,22 @@ ps2_enable_absolute:
 	; Enable
 	mov ebx, ABSPOINTER_ENABLE
 	mov ecx, CMD_ABSPOINTER_COMMAND
-	mov eax, VMWARE_MAGIC
-	mov edx, VMWARE_PORT
-	xor esi, esi ; we only need to do it once
-	xor edi, edi ; same for this guy
-	in eax, dx
+	call Backdoor
 
 	; Status
 	mov ebx, 0
 	mov ecx, CMD_ABSPOINTER_STATUS
-	mov eax, VMWARE_MAGIC
-	mov edx, VMWARE_PORT
-	;xor esi, esi
-	;xor edi, edi
-	in eax, dx
+	call Backdoor
 
 	; Read data 1
 	mov ebx, 1
 	mov ecx, CMD_ABSPOINTER_DATA
-	mov eax, VMWARE_MAGIC
-	mov edx, VMWARE_PORT
-	;xor esi, esi
-	;xor edi, edi
-	in eax, dx
+	call Backdoor
 
 	; Enable absolute
 	mov ebx, ABSPOINTER_ABSOLUTE
 	mov ecx, CMD_ABSPOINTER_COMMAND
-	mov eax, VMWARE_MAGIC
-	mov edx, VMWARE_PORT
-	;xor esi, esi
-	;xor edi, edi
-	in eax, dx
+	call Backdoor
 
 	ret
 
@@ -697,11 +675,7 @@ ps2_disable_exit:
 	; Enable relative
 	mov ebx, ABSPOINTER_RELATIVE
 	mov ecx, CMD_ABSPOINTER_COMMAND
-	mov eax, VMWARE_MAGIC
-	mov edx, VMWARE_PORT
-	xor esi, esi
-	xor edi, edi
-	in eax, dx
+	call Backdoor
 
 	ret
 
@@ -781,6 +755,18 @@ EnableInts proc near
 	ret
 
 EnableInts endp
+
+; VMware hypercall
+; Takes EBX and ECX as arguments. ESI and EDI are not used in this variant.
+; Clobbers EAX and EDX in input, can return in all four registers.
+Backdoor proc near
+
+	mov eax, VMWARE_MAGIC
+	mov dx, VMWARE_PORT
+	in eax, dx
+	ret
+
+Backdoor endp
 
 ;----------------------------------------------------------------------------;
 sEnd    Code
