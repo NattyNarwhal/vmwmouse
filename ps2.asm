@@ -114,7 +114,6 @@ sBegin  Data
 
 externB vector                          ;Vector # of mouse interrupt
 externB mouse_flags                     ;Various flags as follows
-externW interrupt_rate                  ;Maximum interrupt rate of mouse
 externD event_proc                      ;Mouse event procedure when enabled
 externD bios_proc                       ;Contents of old interrupt vector
 

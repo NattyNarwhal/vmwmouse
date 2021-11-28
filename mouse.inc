@@ -18,19 +18,7 @@ bptr		equ	byte ptr
 dptr		equ	dword ptr
 
 
-WF_PMODE	equ	01h		;Running in protect mode.
-
-
-MAX_INT_SIZE	equ	210		;Max. size of interrupt routine
-
-
-ACK_PORT	equ	20h		;8259 master acknowledge port
 MASK_PORT	equ	21h
-ACK_SLAVE_PORT	equ	0A0h		;8259 slave acknowledge port
-MASK_SLAVE_PORT equ	0A1h
-EOI		equ	20h		;8259 end of interrupt
-INT_REQUEST	equ	0ah		;8259 interrupt request register select
-IN_SERVICE	equ	0bh		;8259 in service register select value
 
 
 ;	Symbolic equates for contents of the MOUSEINFO data structure
@@ -45,14 +33,6 @@ io_delay macro
 	jmp	short $+2
 	jmp	short $+2
 	endm
-
-
-
-BIOSDataSeg	segment at 40h		;BIOS data areas of the IBM PC/XT/AT
-rs232_data	dw	4    dup (?)
-		org	6Ch
-bios_time	db	?
-BIOSDataSeg	ends
 
 
 
@@ -104,13 +84,6 @@ MT_HP		equ	5
 ;	Windows/386 mouse VxD device ID.
 
 VMD_DEVICE_ID	equ	0000Ch
-
-
-display_int_size  macro   s
-if2
-%out size of interrupt handler is s bytes
-endif
-endm
 
 
 ;	INT 33h (Mouse) Function Numbers

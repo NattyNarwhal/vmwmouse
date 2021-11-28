@@ -642,7 +642,6 @@ check_ps2:
 	call	ps2_search		;PS/2 mouse port?
 	jc	got_mouse
 	mov	mouse_type, MT_NO_MOUSE ;Reset mouse type to none
-	mov	si,MAX_INT_SIZE
 	jmp	short resize_ds
 
 got_mouse:
@@ -690,8 +689,6 @@ copy_mouse_routines:
 	or	mouse_flags,MF_MOUSE_EXISTS
 
 resize_ds:
-	dec	si
-
 ;	Claims to resize the data segment, but who cares anymore?
 
 	mov	ax,1			;Successful initialization
