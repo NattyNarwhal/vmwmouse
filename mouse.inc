@@ -28,14 +28,6 @@ X_SPEED 	equ	2
 Y_SPEED 	equ	2
 
 
-io_delay macro
-	jmp	short $+2
-	jmp	short $+2
-	jmp	short $+2
-	endm
-
-
-
 ;	Definitions of the status word passed to the event_proc
 ;	in the AX register.  The registers passed to the event_proc
 ;	are as follows:
