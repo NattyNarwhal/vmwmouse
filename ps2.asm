@@ -63,13 +63,11 @@
 
 
 
-GET_DOS_VERSION equ     30h             ;Int 21h, get dos version number
-PT_DEV_PRES     equ     00000100b       ;Pointing device is installed
-
 ;       (CB) Constants for VMware backdoor.
 VMWARE_MAGIC    equ     564D5868h
 VMWARE_PORT     equ     5658h
 ; commands are not hex
+CMD_GETVERSION          equ     10
 CMD_ABSPOINTER_DATA     equ     39
 CMD_ABSPOINTER_STATUS   equ     40
 CMD_ABSPOINTER_COMMAND  equ     41
@@ -446,34 +444,18 @@ page
 		public  ps2_search
 ps2_search      proc    near
 
-	stc                             ;assume call might fail
-	mov     ah,I15_GET_CONFIG       ;Get configuration parameters
-	int     15h
-	jc      ps2_machine_not_found   ;int 15 not supported
-
-	mov     al,es:[bx][2]           ;AL = system model byte
-
-	mov     bl,71h                  ;71h is 8086 machine h/w int vector
-;       mov     bh,09h                  ;09h is 8086 machine h/w irq #
-	cmp     al,0FAh                 ;8086 machine?
-	je      ps2_machine_found       ;  yes
-
-	mov     bl,74h                  ;74h is 286/386 machines h/w int vector
-;       mov     bh,0Ch                  ;0Ch is 286/386 machines h/w irq #
-	cmp     al,0FCh                 ;286 machines?
-	je      ps2_machine_found       ;  Yes
-	cmp     al,0F8h                 ;386 machines?
-	jne     ps2_machine_not_found   ;  No, wrong machine.
-
-ps2_machine_found:
-	mov     vector,bl               ;Save vector #
-	mov     ah,GET_DOS_VERSION      ;Get DOS version
-	int     21h
-	cmp     al,3                    ;Check for DOS 3.x+
-	jl      ps2_cant_use_it         ;Wrong DOS
-	int     11h                     ;Check equipment table
-	test    al,PT_DEV_PRES          ;Pointing device installed?
-	jz      ps2_cant_use_it         ;  No, mouse hardware not present
+	; Check for the VMware backdoor.
+	xor ebx, ebx
+	mov ecx, CMD_GETVERSION
+	mov eax, VMWARE_MAGIC
+	mov dx, VMWARE_PORT
+	in eax, dx
+	cmp eax, 0FFFFFFFFh ; -1 is failure
+	je ps2_cant_use_it
+	cmp ebx, VMWARE_MAGIC ; EBX will be the magic, even on QEMU
+	jne ps2_cant_use_it
+	; Under hypervisors, always assume the 286/386 PS/2 mouse vector
+	mov vector, 074h
 	stc                             ;Show mouse was found
 	ret
 
