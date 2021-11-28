@@ -1,7 +1,7 @@
 # VMware mouse driver for Windows 3.x
 
-Running Windows 3.1 in VMware (or seemingly, QEMU or VirtualBox, but these are
-not tested), but annoyed by having to grab and ungrab the cursor manually?
+Running Windows 3.1 in VMware (or seemingly, QEMU, but it's not yet tested),
+but annoyed by having to grab and ungrab the cursor manually?
 
 Wish you could just move the cursor in and out like a modern OS (one with USB
 tablet support or VMware Tools drivers), with no Ctrl+Alt dancing?
@@ -72,8 +72,8 @@ against MASM and typos.
 
 ## Supported hosts
 
-Only VMware is tested. VirtualBox and QEMU allegedly implement VMware's mouse
-interface, but I haven't tested them.
+Only VMware is tested. QEMU allegedly implements VMware's mouse interface, but
+I haven't tested it.
 
 ## Building from source
 
