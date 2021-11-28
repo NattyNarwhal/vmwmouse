@@ -6,6 +6,9 @@ but annoyed by having to grab and ungrab the cursor manually?
 Wish you could just move the cursor in and out like a modern OS (one with USB
 tablet support or VMware Tools drivers), with no Ctrl+Alt dancing?
 
+Or want to control your cursor *at all* under the ESXi web UI? (It doesn't do
+relative input.)
+
 With this driver, now you can. It implements the interface that VMware uses
 (the [backdoor][1]), replacing the existing PS/2 mouse driver.
 
