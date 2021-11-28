@@ -584,13 +584,10 @@ ps2_enabling:
 ps2_hook_us_in:
 	call    hook_us_in              ;Hook our vector.  Won't alter IRQ mask
 
-ps2_enable_abort:
-	call    ps2_enable_absolute
-	ret
-
-ps2_enable_absolute:
-	; (CB) Now it's time to mess with calling the VMware backdoor.
-	; Enable
+vmware_enable_absolute:
+	; We need to do this *after* successfully setting up our hook.
+	; I don't know if these can fail, but OSDev Wiki doesn't check,
+	; and we do check if we're on something VMware-shaped before...
 	mov ebx, ABSPOINTER_ENABLE
 	mov ecx, CMD_ABSPOINTER_COMMAND
 	call Backdoor
@@ -610,6 +607,7 @@ ps2_enable_absolute:
 	mov ecx, CMD_ABSPOINTER_COMMAND
 	call Backdoor
 
+ps2_enable_abort:
 	ret
 
 ps2_enable      endp
