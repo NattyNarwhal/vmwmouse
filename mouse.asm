@@ -111,7 +111,7 @@ cBegin
 	xchg	al,ah			;AL = 0FFh if mouse exists, 00 if not
 	.errnz	MF_MOUSE_EXISTS-80h
 
-	mov	ah,0FFh 		;AH = 0FFh if relative coordinates
+	mov	ah,0	 		;AH = 0FFh if relative coordinates
 	stosw				;  (but is currently ignored!)
 	.errnz	msExists
 	.errnz	msRelative-msExists-1
