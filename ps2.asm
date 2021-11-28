@@ -125,6 +125,56 @@ globalW prev_x, 0
 globalW prev_y, 0
 globalW prev_state, 0
 
+;-----------------------------------------------------------------------;
+; state_xlate
+;
+;       state_xlate is used to translate the current and previous
+;       button state information into the values required by
+;       Windows.  It is indexed as follows:
+;
+;           pB2 pB1 cB2 cB1
+;
+;            |   |   |   |
+;            |   |   |    --- 1 if button 1 is  down, 0 if button 1 is  up
+;            |   |   |
+;            |   |    ------- 1 if button 2 is  down, 0 if button 2 is  up
+;            |   |
+;            |    ----------- 1 if button 1 was down, 0 if button 1 was up
+;            |
+;             --------------- 1 if button 2 was down, 0 if button 2 was up
+;
+;       This table must be copied to the data segment along with the
+;       interrupt handler.
+;
+;-----------------------------------------------------------------------;
+
+page
+
+state_xlate db 0
+	;db      0                       shr 1
+	db      (SF_B1_DOWN)            shr 1
+	db      (SF_B2_DOWN)            shr 1
+	db      (SF_B2_DOWN+SF_B1_DOWN) shr 1
+
+	db      (SF_B1_UP)              shr 1
+	db      0                       shr 1
+	db      (SF_B1_UP+SF_B2_DOWN)   shr 1
+	db      (SF_B2_DOWN)            shr 1
+
+	db      (SF_B2_UP)              shr 1
+	db      (SF_B1_DOWN+SF_B2_UP)   shr 1
+	db      0                       shr 1
+	db      (SF_B1_DOWN)            shr 1
+
+	db      (SF_B2_UP+SF_B1_UP)     shr 1
+	db      (SF_B2_UP)              shr 1
+	db      (SF_B1_UP)              shr 1
+	db      0                       shr 1
+
+	.errnz  NUMBER_BUTTONS-2        ;Won't work unless a two button mouse
+
+page
+
 sEnd    Data
 
 
@@ -218,28 +268,33 @@ ps2_int proc    far
 	; BX  = x (0 - FFFFh scaled, we caught a break)
 	; CX  = y (ditto)
 	; DX  = number of buttons
-
-
 	; Translate the button state.
 	mov dx, ax
 	xor ax, ax
 	test dx, VMWARE_LEFT
-	jz left_unclicked
-	or ax, SF_B1_DOWN
-	jmp right_click
-left_unclicked:
-	or ax, SF_B1_UP
-right_click:
+	jz not_left_click
+	or ax, 1h
+not_left_click:
 	test dx, VMWARE_RIGHT
-	jz right_unclicked
-	or ax, SF_B2_DOWN
-	jmp fin
-right_unclicked:
-	or ax, SF_B2_UP
-
-
-set_prev_state:
-	mov prev_state, ax
+	jz not_right_click
+	or ax, 2h
+not_right_click:
+	; Blit the previous state as PPxx
+	mov dx, prev_state
+	shl dx, 2
+	or ax, dx
+	; Save current state for the next time
+	mov dx, ax
+	and dx, 3 ; mask out all bit two lowest
+	mov prev_state, dx
+	; XXX: Middle clicks?
+	push bx ; save X pos because we need to do an indexed load
+	mov bx, DataOFFSET state_xlate ; does indirect ref otherwise
+	mov di, ax
+	mov al, [bx + di]
+	shl ax, 1 ; XXX: Why is it shifted in state_xlate?
+	pop bx ; restore X pos
+	; end button code
 	; Only set SF_MOVEMENT if there was a difference
 	xor dx, dx ; Use DX as scratch again
 	cmp prev_x, bx
@@ -281,53 +336,6 @@ ps2_int_exit:
 	iret
 
 ps2_int endp
-page
-
-;-----------------------------------------------------------------------;
-; state_xlate
-;
-;       state_xlate is used to translate the current and previous
-;       button state information into the values required by
-;       Windows.  It is indexed as follows:
-;
-;           pB2 pB1 cB2 cB1
-;
-;            |   |   |   |
-;            |   |   |    --- 1 if button 1 is  down, 0 if button 1 is  up
-;            |   |   |
-;            |   |    ------- 1 if button 2 is  down, 0 if button 2 is  up
-;            |   |
-;            |    ----------- 1 if button 1 was down, 0 if button 1 was up
-;            |
-;             --------------- 1 if button 2 was down, 0 if button 2 was up
-;
-;       This table must be copied to the data segment along with the
-;       interrupt handler.
-;
-;-----------------------------------------------------------------------;
-
-	db      0                       shr 1
-	db      (SF_B1_DOWN)            shr 1
-	db      (SF_B2_DOWN)            shr 1
-	db      (SF_B2_DOWN+SF_B1_DOWN) shr 1
-
-	db      (SF_B1_UP)              shr 1
-	db      0                       shr 1
-	db      (SF_B1_UP+SF_B2_DOWN)   shr 1
-	db      (SF_B2_DOWN)            shr 1
-
-	db      (SF_B2_UP)              shr 1
-	db      (SF_B1_DOWN+SF_B2_UP)   shr 1
-	db      0                       shr 1
-	db      (SF_B1_DOWN)            shr 1
-
-	db      (SF_B2_UP+SF_B1_UP)     shr 1
-	db      (SF_B2_UP)              shr 1
-	db      (SF_B1_UP)              shr 1
-	db      0                       shr 1
-
-	.errnz  NUMBER_BUTTONS-2        ;Won't work unless a two button mouse
-
 page
 
 ;--------------------------Interrupt-Routine----------------------------;
