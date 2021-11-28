@@ -30,13 +30,13 @@ ASM = masm -v -ML  $(OPT)					# MASM 4.01 & >
 .asm.obj:
 	$(ASM) $*,$@;
 
-mouse:  mouse.drv
+vmwmouse:  vmwmouse.drv
 
 mouse.obj:	mouse.asm mouse.inc
 
 ps2.obj:	ps2.asm mouse.inc
 
-mouse.drv:	mouse.def mouse.obj ps2.obj
+vmwmouse.drv:	mouse.def mouse.obj ps2.obj
       link @mouse.lnk
-      rc mouse.drv
-      mapsym mouse
+      rc vmwmouse.drv
+      mapsym vmwmouse

@@ -1,5 +1,5 @@
 mouse ps2
-mouse.drv
-mouse/map/al:16
+vmwmouse.drv
+vmwmouse/map/al:16
 libw /NOD
 mouse.def

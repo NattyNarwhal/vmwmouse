@@ -75,7 +75,7 @@ against MASM and typos.
 Only VMware is tested. VirtualBox and QEMU allegedly implement VMware's mouse
 interface, but I haven't tested them.
 
-## Building
+## Building from source
 
 Make sure you have the [Windows 3.1 Device Development Kit][3] installed.
 
@@ -90,8 +90,14 @@ nmake
 
 If building from source; after building, run `INSTALL.BAT`.
 
-If using a binary build, copy `MOUSE.DRV` over your existing installation's.
-Obviously, make a backup copy first.
+If using binaries, run Windows Setup. Point where the driver and INF file are;
+if you're using the floppy, it'll likely be `A:`. Restart Windows and enjoy.
+Serve with garnish.
+
+Note that if you're using the GUI version of Windows Setup, after selecting
+the VMware mouse driver for the first time, the combo box might go blank. If
+that's the case, you need to select it again. This doesn't happen from the DOS
+version of Windows Setup (when setup is run outside of Windows or at install).
 
 [1]: https://wiki.osdev.org/VMware_tools
 [2]: https://wiki.osdev.org/VMware_tools#Absolute_Mouse_Coordinates

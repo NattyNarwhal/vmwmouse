@@ -1,3 +1,3 @@
 rem Adapt this to your Windows installation.
-rem XXX: Proper INF or something
-copy mouse.drv C:\windows\system\mouse.drv
+rem Only use for development; "production" use should use INF
+copy vmwmouse.drv C:\windows\system\mouse.drv

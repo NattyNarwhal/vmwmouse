@@ -1,0 +1,6 @@
+[disks]
+1=.,"VMware Mouse Disk"
+[pointing.device]
+;profile =  mouse driver,   Mouse description,                 VMD,     Optional work section
+vmwmouse  = 1:vmwmouse.drv, "VMware mouse",                 x:*vmd
+; XXX: Define a VMD device if we do it (i.e. a:vmwvmd.386)
