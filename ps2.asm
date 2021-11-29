@@ -61,6 +61,8 @@
 	externNP hook_us_in             ;Hook us into our interrupt
 	externNP unhook_us              ;Hook us out of our interrupt
 
+	externFP GetModuleHandle
+	externFP GetProcAddress
 
 
 ;       (CB) Constants for VMware backdoor.
@@ -105,6 +107,10 @@ PS2M_SAMPLING_100       equ     5       ;100 reports per second
 VMWARE_LEFT	equ	20h		; Status of left button
 VMWARE_RIGHT	equ	10h		; Status of right button
 VMWARE_MIDDLE	equ	08h		; Status of middle button
+
+; dynamic runtime stuff
+
+POSTMESSAGE equ     110 	    ; export ordinal of PostMessage()
 
 sBegin  Data
 
@@ -174,6 +180,13 @@ state_xlate db 0
 	.errnz  NUMBER_BUTTONS-2        ;Won't work unless a two button mouse
 
 page
+
+; Fairly dark web shit
+
+lpPostMessage	dd 0
+lpGetFocus	dd 0
+szUser db 'USER',0
+szGetFocus db 'GetFocus',0
 
 sEnd    Data
 
@@ -262,12 +275,14 @@ ps2_int proc    far
 	; EAX = flags, buttons (10h right 20h left 8h middle)
 	; EBX = x (0 - FFFFh scaled)
 	; ECX = y (ditto)
-	; EDX = z (scroll wheel as 8-bit signed, can ignore)
+	; EDX = z (scroll wheel as 8-bit signed)
 	; Windows wants:
 	; AX  = flags (absolute, button transitions)
 	; BX  = x (0 - FFFFh scaled, we caught a break)
 	; CX  = y (ditto)
 	; DX  = number of buttons
+	; Call the wheel (restores state)
+	call vmware_handle_wheel
 	; Translate the button state.
 	mov dx, ax
 	xor ax, ax
@@ -759,6 +774,95 @@ EnableInts proc near
 	ret
 
 EnableInts endp
+
+;----------------------------------------------------------------------------;
+
+; Blursed
+; Takes EDX for wheel, will save EAX, EBX, and ECX
+vmware_handle_wheel proc near
+	push eax
+	push ebx
+	push ecx
+	push edx
+	; skip if unneeded
+	cmp edx, 0
+	jz fin
+start_wheel:
+	; We need the addresses of two functions:
+	; - to get the current focus (GetFocus)
+	;   (XXX: WindowFromPoint, GetCursorPos)
+	;   it may not necessarily be top-level, so we have to make due
+	; - we need to be able to post messages
+	cmp	word ptr lpGetFocus[2], 0 ;Q: ptr to proc valid?
+	jne	short gf_done 	;   Y: we can call it
+	push	ds			;   N: get module handle of USER
+	lea	ax, szUser
+	push	ax
+	cCall	GetModuleHandle
+	
+	push	ax			; module handle
+	push	ds			; i don't know the ordinal
+	lea	ax, szGetFocus
+	push	ax
+	cCall	GetProcAddress
+	mov	word ptr lpGetFocus[0], ax  ; save received proc address
+	mov	word ptr lpGetFocus[2], dx
+gf_done:
+	cmp	word ptr lpPostMessage[2], 0	;Q: gotten addr of PostMessage yet?
+	jne	short pm_done		;   Y:
+	push	ds			;   N: get module handle of USER
+	lea	ax, szUser
+	push	ax
+	cCall	GetModuleHandle
+
+	push	ax			; module handle
+	mov	ax, POSTMESSAGE
+	cwd
+	push	dx
+	push	ax
+	cCall	GetProcAddress
+	mov	word ptr lpPostMessage[0], ax ; save received proc address
+	mov	word ptr lpPostMessage[2], dx
+pm_done:
+	; let's get the focus and go
+	cCall	lpGetFocus
+	; now let's post
+	; save edx for epilogue, but we also want to use it now
+	pop edx
+	push edx
+	; HWND
+	;mov ax, 0FFFFh ; HWND_BROADCAST
+	; ax is saved from GetFocus
+	push ax
+	; Message (WM_VSCROLL)
+	mov ax, 115h
+	push ax
+	; wParam
+	cmp dx, 0FFh
+	jne other_way
+	mov ax, 0
+	jmp this_way
+	; for lines: up 0, down 1
+other_way:
+	mov ax, 1
+this_way:
+	push ax
+	; lParam (high word)
+	mov ax, 0
+	push ax
+	; lParam (low word)
+	mov ax, 0
+	push ax
+	cCall	lpPostMessage
+fin:
+	pop edx
+	pop ecx
+	pop ebx
+	pop eax
+	ret
+vmware_handle_wheel endp
+
+;----------------------------------------------------------------------------;
 
 ; VMware hypercall
 ; Takes EBX and ECX as arguments. ESI and EDI are not used in this variant.
