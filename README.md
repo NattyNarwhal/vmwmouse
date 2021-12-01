@@ -1,10 +1,10 @@
 # VMware mouse driver for Windows 3.x
 
-Running Windows 3.1 in VMware (or seemingly, QEMU, but it's not yet tested),
-but annoyed by having to grab and ungrab the cursor manually?
+Running Windows 3.1 in VMware or QEMU, but annoyed by having to grab and ungrab
+the cursor manually?
 
 Wish you could just move the cursor in and out like a modern OS (one with USB
-tablet support or VMware Tools drivers), with no Ctrl+Alt dancing?
+tablet support or VMware Tools drivers), with no Ctrl+Alt(+G) dancing?
 
 Or want to control your cursor *at all* under the ESXi web UI? (It doesn't do
 relative input.)
@@ -13,6 +13,8 @@ With this driver, now you can. It implements the interface that VMware uses
 (the [backdoor][1]), replacing the existing PS/2 mouse driver.
 
 https://user-images.githubusercontent.com/3161292/143529005-8bedce21-109d-43d1-96c9-8c958a613bd6.mp4
+
+https://user-images.githubusercontent.com/3161292/144170828-61b586f0-88f0-49b1-ba69-bc371f94753b.mp4
 
 ## Well, how does it work?
 
@@ -73,10 +75,18 @@ Overall, I'm glad this was surprisingly easy, considering I didn't know x86
 assembly before, and I only implemented this in a day - with lots of struggling
 against MASM and typos.
 
+(Updates: I've cleaned up button handling, and I'm experimenting on the wheel.)
+
 ## Supported hosts
 
-Only VMware is tested. QEMU allegedly implements VMware's mouse interface, but
-I haven't tested it.
+VMware and QEMU are supported. I have tested Workstation and ESXi. I can't test
+Fusion because my Mac is M1, so oh well.
+
+VMware will need no configuration. QEMU also needs no configuration - the vmmouse
+automatically gets attached when the backdoor is added. Don't try adding it any
+command line flags; you're likely to just crash it.
+
+(For QEMU, you can verify things by running `info mice` and `info qtree`.)
 
 ## Building from source
 
@@ -91,7 +101,13 @@ nmake
 
 ## Installation
 
-If building from source; after building, run `INSTALL.BAT`.
+### Source
+
+If building from source; after building, run `INSTALL.BAT`. This will overwrite
+the stock mouse driver, so make a backup. The INF install is less crumbly, so I
+recommend you go for that.
+
+### Binaries
 
 If using binaries, run Windows Setup. Point where the driver and INF file are;
 if you're using the floppy, it'll likely be `A:`. Restart Windows and enjoy.
