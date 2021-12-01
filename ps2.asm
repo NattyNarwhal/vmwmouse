@@ -185,8 +185,12 @@ page
 
 lpPostMessage	dd 0
 lpGetFocus	dd 0
+lpWindowFromPoint	dd 0
+lpGetCursorPos	dd 0
 szUser db 'USER',0
 szGetFocus db 'GetFocus',0
+szWindowFromPoint db 'WindowFromPoint',0
+szGetCursorPos db 'GetCursorPos',0
 
 sEnd    Data
 
@@ -281,8 +285,7 @@ ps2_int proc    far
 	; BX  = x (0 - FFFFh scaled, we caught a break)
 	; CX  = y (ditto)
 	; DX  = number of buttons
-	; Call the wheel (restores state)
-	call vmware_handle_wheel
+	push edx
 	; Translate the button state.
 	mov dx, ax
 	xor ax, ax
@@ -334,6 +337,10 @@ set_deltas:
 	xor di,di
 	sti
 	call    event_proc
+	; Call the wheel (restores state)
+	pop edx
+	push dx
+	cCall vmware_handle_wheel
 
 ps2_no_data:
 	pop     es
@@ -777,21 +784,19 @@ EnableInts endp
 
 ;----------------------------------------------------------------------------;
 
-; Blursed
-; Takes EDX for wheel, will save EAX, EBX, and ECX
-vmware_handle_wheel proc near
-	push eax
-	push ebx
-	push ecx
-	push edx
+; Takes
+cProc vmware_handle_wheel <NEAR,PUBLIC> ; nothing to preserve
+	parmW wheel_dir
+	localV cursor_point, 4 ; two ints for POINT?
+cBegin
 	; skip if unneeded
-	cmp edx, 0
+	cmp wheel_dir, 0
 	jz fin
 start_wheel:
-	; We need the addresses of two functions:
-	; - to get the current focus (GetFocus)
-	;   (XXX: WindowFromPoint, GetCursorPos)
-	;   it may not necessarily be top-level, so we have to make due
+	; We need the addresses of some functions:
+	; - to get the current focus (vestigal right now)
+	; - to get the current cursor pos
+	; - to get the window under the cursor
 	; - we need to be able to post messages
 	cmp	word ptr lpGetFocus[2], 0 ;Q: ptr to proc valid?
 	jne	short gf_done 	;   Y: we can call it
@@ -808,6 +813,36 @@ start_wheel:
 	mov	word ptr lpGetFocus[0], ax  ; save received proc address
 	mov	word ptr lpGetFocus[2], dx
 gf_done:
+	cmp	word ptr lpGetCursorPos[2], 0 ;Q: ptr to proc valid?
+	jne	short gcp_done 	;   Y: we can call it
+	push	ds			;   N: get module handle of USER
+	lea	ax, szUser
+	push	ax
+	cCall	GetModuleHandle
+	
+	push	ax			; module handle
+	push	ds			; i don't know the ordinal
+	lea	ax, szGetCursorPos
+	push	ax
+	cCall	GetProcAddress
+	mov	word ptr lpGetCursorPos[0], ax  ; save received proc address
+	mov	word ptr lpGetCursorPos[2], dx
+gcp_done:
+	cmp	word ptr lpWindowFromPoint[2], 0 ;Q: ptr to proc valid?
+	jne	short wfp_done 	;   Y: we can call it
+	push	ds			;   N: get module handle of USER
+	lea	ax, szUser
+	push	ax
+	cCall	GetModuleHandle
+	
+	push	ax			; module handle
+	push	ds			; i don't know the ordinal
+	lea	ax, szWindowFromPoint
+	push	ax
+	cCall	GetProcAddress
+	mov	word ptr lpWindowFromPoint[0], ax  ; save received proc address
+	mov	word ptr lpWindowFromPoint[2], dx
+wfp_done:
 	cmp	word ptr lpPostMessage[2], 0	;Q: gotten addr of PostMessage yet?
 	jne	short pm_done		;   Y:
 	push	ds			;   N: get module handle of USER
@@ -824,21 +859,28 @@ gf_done:
 	mov	word ptr lpPostMessage[0], ax ; save received proc address
 	mov	word ptr lpPostMessage[2], dx
 pm_done:
-	; let's get the focus and go
-	cCall	lpGetFocus
-	; now let's post
-	; save edx for epilogue, but we also want to use it now
-	pop edx
-	push edx
+	; * GetCursorPos *
+	push ss
+	lea 	ax, cursor_point
+	push ax
+	cCall	lpGetCursorPos
+	; * WindowFromPoint *
+	; this guy takes the args on stack, load like this for right way up
+	mov ax, word ptr cursor_point[2]
+	push ax
+	mov ax, word ptr cursor_point[0]
+	push ax
+	cCall	lpWindowFromPoint
+	; * PostMessage *
 	; HWND
 	;mov ax, 0FFFFh ; HWND_BROADCAST
-	; ax is saved from GetFocus
+	; ax is saved from last call
 	push ax
 	; Message (WM_VSCROLL)
 	mov ax, 115h
 	push ax
 	; wParam
-	cmp dx, 0FFh
+	cmp wheel_dir, 0FFh
 	jne other_way
 	mov ax, 0
 	jmp this_way
@@ -855,12 +897,9 @@ this_way:
 	push ax
 	cCall	lpPostMessage
 fin:
-	pop edx
-	pop ecx
-	pop ebx
-	pop eax
-	ret
-vmware_handle_wheel endp
+	; ret
+cEnd
+page
 
 ;----------------------------------------------------------------------------;
 
