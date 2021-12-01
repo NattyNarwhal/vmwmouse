@@ -181,7 +181,7 @@ state_xlate db 0
 
 page
 
-; Fairly dark web shit
+; Function pointers and names for dynamic usage, since we can't externFP USER.
 
 lpPostMessage	dd 0
 lpGetFocus	dd 0
@@ -784,7 +784,6 @@ EnableInts endp
 
 ;----------------------------------------------------------------------------;
 
-; Takes
 cProc vmware_handle_wheel <NEAR,PUBLIC> ; nothing to preserve
 	parmW wheel_dir
 	localV cursor_point, 4 ; two ints for POINT?
