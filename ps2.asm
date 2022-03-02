@@ -63,6 +63,7 @@
 
 	externFP GetModuleHandle
 	externFP GetProcAddress
+	externFP GetPrivateProfileInt
 
 
 ;       (CB) Constants for VMware backdoor.
@@ -131,6 +132,8 @@ globalW prev_x, 0
 globalW prev_y, 0
 globalW prev_state, 0
 
+globalW wheel_enabled, 0
+
 ;-----------------------------------------------------------------------;
 ; state_xlate
 ;
@@ -191,6 +194,9 @@ szUser db 'USER',0
 szGetFocus db 'GetFocus',0
 szWindowFromPoint db 'WindowFromPoint',0
 szGetCursorPos db 'GetCursorPos',0
+szSection   db 'VMwareMouse', 0
+szWheelEnabled   db 'EnableWheel', 0
+szSYSTEMINI     db 'SYSTEM.INI', 0
 
 sEnd    Data
 
@@ -339,6 +345,11 @@ set_deltas:
 	call    event_proc
 	; Call the wheel (restores state)
 	pop edx
+	; but skip if unneeded
+	cmp wheel_enabled, 0
+	jz ps2_no_data
+	cmp dx, 0
+	jz ps2_no_data
 	push dx
 	cCall vmware_handle_wheel
 
@@ -612,6 +623,24 @@ ps2_enabling:
 ps2_hook_us_in:
 	call    hook_us_in              ;Hook our vector.  Won't alter IRQ mask
 
+vmware_load_ini:
+	; Don't enable the wheel by default, because it might be not be
+	; ready for prime time yet, though it could be very useful.
+	; There's also some other considerations too (i.e. other drivers,
+	; a control panel in the future, etc.)
+	push	ds
+	lea	ax, szSection
+	push	ax	; Section
+	push	ds
+	lea	ax, szWheelEnabled
+	push	ax	; Key
+	push	0	; Default value
+	push	ds
+	lea	ax, szSYSTEMINI
+	push	ax	; INI file
+	call	GetPrivateProfileInt
+	mov	wheel_enabled, ax
+
 vmware_enable_absolute:
 	; We need to do this *after* successfully setting up our hook.
 	; I don't know if these can fail, but OSDev Wiki doesn't check,
@@ -788,10 +817,6 @@ cProc vmware_handle_wheel <NEAR,PUBLIC> ; nothing to preserve
 	parmW wheel_dir
 	localV cursor_point, 4 ; two ints for POINT?
 cBegin
-	; skip if unneeded
-	cmp wheel_dir, 0
-	jz fin
-start_wheel:
 	; We need the addresses of some functions:
 	; - to get the current focus (vestigal right now)
 	; - to get the current cursor pos
