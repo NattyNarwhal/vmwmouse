@@ -61,6 +61,9 @@
 	externNP hook_us_in             ;Hook us into our interrupt
 	externNP unhook_us              ;Hook us out of our interrupt
 
+	externFP GetModuleHandle
+	externFP GetProcAddress
+	externFP GetPrivateProfileInt
 
 
 ;       (CB) Constants for VMware backdoor.
@@ -106,6 +109,10 @@ VMWARE_LEFT	equ	20h		; Status of left button
 VMWARE_RIGHT	equ	10h		; Status of right button
 VMWARE_MIDDLE	equ	08h		; Status of middle button
 
+; dynamic runtime stuff
+
+POSTMESSAGE equ     110 	    ; export ordinal of PostMessage()
+
 sBegin  Data
 
 externB vector                          ;Vector # of mouse interrupt
@@ -124,6 +131,8 @@ globalB PS2_DATA_FLAG, 0
 globalW prev_x, 0
 globalW prev_y, 0
 globalW prev_state, 0
+
+globalW wheel_enabled, 0
 
 ;-----------------------------------------------------------------------;
 ; state_xlate
@@ -174,6 +183,20 @@ state_xlate db 0
 	.errnz  NUMBER_BUTTONS-2        ;Won't work unless a two button mouse
 
 page
+
+; Function pointers and names for dynamic usage, since we can't externFP USER.
+
+lpPostMessage	dd 0
+lpGetFocus	dd 0
+lpWindowFromPoint	dd 0
+lpGetCursorPos	dd 0
+szUser db 'USER',0
+szGetFocus db 'GetFocus',0
+szWindowFromPoint db 'WindowFromPoint',0
+szGetCursorPos db 'GetCursorPos',0
+szSection   db 'VMwareMouse', 0
+szWheelEnabled   db 'EnableWheel', 0
+szSYSTEMINI     db 'SYSTEM.INI', 0
 
 sEnd    Data
 
@@ -262,12 +285,13 @@ ps2_int proc    far
 	; EAX = flags, buttons (10h right 20h left 8h middle)
 	; EBX = x (0 - FFFFh scaled)
 	; ECX = y (ditto)
-	; EDX = z (scroll wheel as 8-bit signed, can ignore)
+	; EDX = z (scroll wheel as 8-bit signed)
 	; Windows wants:
 	; AX  = flags (absolute, button transitions)
 	; BX  = x (0 - FFFFh scaled, we caught a break)
 	; CX  = y (ditto)
 	; DX  = number of buttons
+	push edx
 	; Translate the button state.
 	mov dx, ax
 	xor ax, ax
@@ -319,6 +343,15 @@ set_deltas:
 	xor di,di
 	sti
 	call    event_proc
+	; Call the wheel (restores state)
+	pop edx
+	; but skip if unneeded
+	cmp wheel_enabled, 0
+	jz ps2_no_data
+	cmp dx, 0
+	jz ps2_no_data
+	push dx
+	cCall vmware_handle_wheel
 
 ps2_no_data:
 	pop     es
@@ -590,6 +623,24 @@ ps2_enabling:
 ps2_hook_us_in:
 	call    hook_us_in              ;Hook our vector.  Won't alter IRQ mask
 
+vmware_load_ini:
+	; Don't enable the wheel by default, because it might be not be
+	; ready for prime time yet, though it could be very useful.
+	; There's also some other considerations too (i.e. other drivers,
+	; a control panel in the future, etc.)
+	push	ds
+	lea	ax, szSection
+	push	ax	; Section
+	push	ds
+	lea	ax, szWheelEnabled
+	push	ax	; Key
+	push	0	; Default value
+	push	ds
+	lea	ax, szSYSTEMINI
+	push	ax	; INI file
+	call	GetPrivateProfileInt
+	mov	wheel_enabled, ax
+
 vmware_enable_absolute:
 	; We need to do this *after* successfully setting up our hook.
 	; I don't know if these can fail, but OSDev Wiki doesn't check,
@@ -759,6 +810,122 @@ EnableInts proc near
 	ret
 
 EnableInts endp
+
+;----------------------------------------------------------------------------;
+
+cProc vmware_handle_wheel <NEAR,PUBLIC> ; nothing to preserve
+	parmW wheel_dir
+	localV cursor_point, 4 ; two ints for POINT?
+cBegin
+	; We need the addresses of some functions:
+	; - to get the current focus (vestigal right now)
+	; - to get the current cursor pos
+	; - to get the window under the cursor
+	; - we need to be able to post messages
+	cmp	word ptr lpGetFocus[2], 0 ;Q: ptr to proc valid?
+	jne	short gf_done 	;   Y: we can call it
+	push	ds			;   N: get module handle of USER
+	lea	ax, szUser
+	push	ax
+	cCall	GetModuleHandle
+	
+	push	ax			; module handle
+	push	ds			; i don't know the ordinal
+	lea	ax, szGetFocus
+	push	ax
+	cCall	GetProcAddress
+	mov	word ptr lpGetFocus[0], ax  ; save received proc address
+	mov	word ptr lpGetFocus[2], dx
+gf_done:
+	cmp	word ptr lpGetCursorPos[2], 0 ;Q: ptr to proc valid?
+	jne	short gcp_done 	;   Y: we can call it
+	push	ds			;   N: get module handle of USER
+	lea	ax, szUser
+	push	ax
+	cCall	GetModuleHandle
+	
+	push	ax			; module handle
+	push	ds			; i don't know the ordinal
+	lea	ax, szGetCursorPos
+	push	ax
+	cCall	GetProcAddress
+	mov	word ptr lpGetCursorPos[0], ax  ; save received proc address
+	mov	word ptr lpGetCursorPos[2], dx
+gcp_done:
+	cmp	word ptr lpWindowFromPoint[2], 0 ;Q: ptr to proc valid?
+	jne	short wfp_done 	;   Y: we can call it
+	push	ds			;   N: get module handle of USER
+	lea	ax, szUser
+	push	ax
+	cCall	GetModuleHandle
+	
+	push	ax			; module handle
+	push	ds			; i don't know the ordinal
+	lea	ax, szWindowFromPoint
+	push	ax
+	cCall	GetProcAddress
+	mov	word ptr lpWindowFromPoint[0], ax  ; save received proc address
+	mov	word ptr lpWindowFromPoint[2], dx
+wfp_done:
+	cmp	word ptr lpPostMessage[2], 0	;Q: gotten addr of PostMessage yet?
+	jne	short pm_done		;   Y:
+	push	ds			;   N: get module handle of USER
+	lea	ax, szUser
+	push	ax
+	cCall	GetModuleHandle
+
+	push	ax			; module handle
+	mov	ax, POSTMESSAGE
+	cwd
+	push	dx
+	push	ax
+	cCall	GetProcAddress
+	mov	word ptr lpPostMessage[0], ax ; save received proc address
+	mov	word ptr lpPostMessage[2], dx
+pm_done:
+	; * GetCursorPos *
+	push ss
+	lea 	ax, cursor_point
+	push ax
+	cCall	lpGetCursorPos
+	; * WindowFromPoint *
+	; this guy takes the args on stack, load like this for right way up
+	mov ax, word ptr cursor_point[2]
+	push ax
+	mov ax, word ptr cursor_point[0]
+	push ax
+	cCall	lpWindowFromPoint
+	; * PostMessage *
+	; HWND
+	;mov ax, 0FFFFh ; HWND_BROADCAST
+	; ax is saved from last call
+	push ax
+	; Message (WM_VSCROLL)
+	mov ax, 115h
+	push ax
+	; wParam
+	cmp wheel_dir, 0FFh
+	jne other_way
+	mov ax, 0
+	jmp this_way
+	; for lines: up 0, down 1
+other_way:
+	mov ax, 1
+this_way:
+	push ax
+	; lParam (high word)
+	mov ax, 0
+	push ax
+	; lParam (low word)
+	mov ax, 0
+	push ax
+	cCall	lpPostMessage
+fin:
+	; ret
+cEnd
+page
+
+;----------------------------------------------------------------------------;
 
 ; VMware hypercall
 ; Takes EBX and ECX as arguments. ESI and EDI are not used in this variant.
