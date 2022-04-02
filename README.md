@@ -1,7 +1,7 @@
 # VMware mouse driver for Windows 3.x
 
-Running Windows 3.1 in VMware or QEMU, but annoyed by having to grab and ungrab
-the cursor manually?
+Running Windows 3.1 in VMware, DOSBox-X, or QEMU, but annoyed by having to grab
+and ungrab the cursor manually?
 
 Wish you could just move the cursor in and out like a modern OS (one with USB
 tablet support or VMware Tools drivers), with no Ctrl+Alt(+G) dancing?
@@ -118,6 +118,11 @@ the VMware mouse driver for the first time, the combo box might go blank. If
 that's the case, you need to select it again. This doesn't happen from the DOS
 version of Windows Setup (when setup is run outside of Windows or at install).
 
+## Similar drivers
+
+* [Javier's VirtualBox mouse driver][4]
+
 [1]: https://wiki.osdev.org/VMware_tools
 [2]: https://wiki.osdev.org/VMware_tools#Absolute_Mouse_Coordinates
 [3]: https://winworldpc.com/download/3d0639c3-9e18-c39a-11c3-a4e284a2c3a5
+[4]: https://git.javispedro.com/cgit/vbmouse.git/tree/
