@@ -1,3 +1,11 @@
+**IMPORTANT**: I haven't touched this driver in a while, and there are some
+issues with it. I'm happy people got a lot of use and enjoyment out of this
+quick weekend hack, but it needs some work I don't have time to give it.
+
+I would recommend using Javier Pedro's [VBADOS][5] mouse driver, which has
+has the benefit of being a `mouse.com` that works with DOS applications, as
+well as with both VirtualBox and VMware.
+
 # VMware mouse driver for Windows 3.x
 
 Running Windows 3.1 in VMware, DOSBox-X, or QEMU, but annoyed by having to grab
@@ -126,3 +134,4 @@ version of Windows Setup (when setup is run outside of Windows or at install).
 [2]: https://wiki.osdev.org/VMware_tools#Absolute_Mouse_Coordinates
 [3]: https://winworldpc.com/download/3d0639c3-9e18-c39a-11c3-a4e284a2c3a5
 [4]: https://git.javispedro.com/cgit/vbmouse.git/tree/
+[5]: https://git.javispedro.com/cgit/vbados.git/about/
