@@ -253,13 +253,13 @@ ps2_int proc    far
 	test    PS2_DATA_FLAG,0FFh
 	jz      ps2_int_exit            ;Not a valid PS/2 mouse interrupt
 
-	push    ax                      ;Save the world
-	push    bx
-	push    cx
-	push    dx
-	push    si
-	push    di
-	push    bp
+	push    eax                      ;Save the world
+	push    ebx
+	push    ecx
+	push    edx
+	push    esi
+	push    edi
+	push    ebp
 	push    ds
 	push    es
 	mov     ax,_DATA
@@ -356,13 +356,13 @@ set_deltas:
 ps2_no_data:
 	pop     es
 	pop     ds
-	pop     bp
-	pop     di
-	pop     si
-	pop     dx
-	pop     cx
-	pop     bx
-	pop     ax
+	pop     ebp
+	pop     edi
+	pop     esi
+	pop     edx
+	pop     ecx
+	pop     ebx
+	pop     eax
 
 ps2_int_exit:
 	pop ds
